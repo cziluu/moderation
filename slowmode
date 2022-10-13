@@ -1,0 +1,30 @@
+const Discord = require('discord.js')
+module.exports = {
+    name: "slowmode",
+    description: "Ustawia cooldown na kanale (customowy)",
+    cooldowns: 7000,
+    type: "CHAT_INPUT",
+    perms: ["MANAGE_CHANNELS"],
+    options: [
+        {
+            name: `czas`,
+            description: `Czas nowego cooldownu (w sekundach)`,
+            type: `NUMBER`,
+            required: true
+        }
+    ],
+    run: async (client, interaction, args) => {
+        let seconds = interaction.options.getNumber(`czas`)
+
+        interaction.channel.setRateLimitPerUser(seconds)
+
+        let embed = new Discord.MessageEmbed()
+        .setTitle(`Zmianiono cooldown!`)
+        .setColor(client.config.color.primary)
+        .setDescription(`${interaction.member} zmienił cooldown w tym kanale na \`${seconds}\` sekund/y`)
+        interaction.reply({
+            embeds: [embed]
+        })
+        
+    }
+}
