@@ -1,0 +1,46 @@
+const Discord = require('discord.js')
+module.exports = {
+    name: "ankieta",
+    description: "Możesz wysłać ankietę na kanał",
+    type: "CHAT_INPUT",
+    perms: ["ADMINISTRATOR"],
+    options: [
+        {
+            name: `treść`,
+            description: `Treść ankiety`,
+            type: `STRING`,
+            required: true
+        },
+        {
+            name: `color`,
+            description: `HEX color`,
+            type: `STRING`,
+            required: true
+        }
+
+    ],
+    run: async (client, interaction, args) => {
+        let string = interaction.options.getString(`treść`)
+        let hex = interaction.options.getString(`color`)
+    
+        let embed = new Discord.MessageEmbed()
+        .setAuthor({name: `Ankieta`, iconURL: interaction.guild.iconURL({dynamic: true})})
+        .setColor(hex)
+        .setDescription(string)
+
+        interaction.reply({
+            content: `Tworzę ankięte!`,
+            ephemeral: true
+        })
+        
+        interaction.channel.send({
+            embeds: [embed]
+        }).then(async (message) => {
+            await message.react(`✅`)
+            await message.react(`🟰`)
+            await message.react(`❌`)
+
+
+            })
+        }
+    }
