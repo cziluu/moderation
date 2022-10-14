@@ -1,0 +1,215 @@
+const { time } = require('console')
+const Discord = require('discord.js')
+const ms = require(`ms`)
+module.exports = {
+    name: "timeout",
+    description: "Wysyła użytkownka na przerwę",
+    cooldowns: 7000,
+    type: "CHAT_INPUT",
+    perms: ["KICK_MEMBERS"],
+    options: [
+        {
+            name: `użytkownik`,
+            description: `Użytkownik którego chcesz wyrzucić`,
+            type: `USER`,
+            required: true
+        },
+        {
+            name: `czas`,
+            description: `Czas na jaki chcesz wysłać użytkownika na przerwę`,
+            type: `STRING`,
+            required: true
+        },
+        {
+            name: `powód`,
+            description: `Powód wyrzucenia dla użytkownika`,
+            type: `STRING`,
+            required: true
+        }
+    ],
+    run: async (client, interaction, args) => {
+        let modLogChannel = await client.db.get(`guilds.${interaction.guild.id}.modlog`)
+        if(modLogChannel){
+            modLogChannel = interaction.guild.channels.cache.get(modLogChannel)
+        }
+
+
+
+        let member = interaction.options.getMember(`użytkownik`)
+        let timeMs = interaction.options.getString(`czas`)
+        let reason = interaction.options.getString(`powód`) || `Nie podano powodu`
+
+        if(!member){
+            let errEmbed = new Discord.MessageEmbed()
+            .setTitle(`Napotkano problem!`)
+            .setColor(client.config.color.error)
+            .setDescription(`Nie znaleziono użytkownika! Może nie ma go na serwerze?`)
+            .setFooter({text: `Wywołane przez ${interaction.user.tag} (${interaction.user.id})`, iconURL: interaction.user.avatarURL({dynamic :true})})
+
+            return interaction.reply({
+                embeds: [errEmbed]
+            })
+        }
+
+        if(!member.bannable){
+            let errEmbed = new Discord.MessageEmbed()
+            .setTitle(`Napotkano problem!`)
+            .setColor(client.config.color.error)
+            .setDescription(`Nie można wysłać użytkownika na przerwę! Prawdopodobnie ma on permisje administratora!`)
+            .setFooter({text: `Wywołane przez ${interaction.user.tag} (${interaction.user.id})`, iconURL: interaction.user.avatarURL({dynamic :true})})
+
+            return interaction.reply({
+                embeds: [errEmbed]
+            })
+        }
+
+        if(member.roles.cache.first().position >= interaction.member.roles.cache.first().position){
+            let errEmbed = new Discord.MessageEmbed()
+            .setTitle(`Napotkano problem!`)
+            .setColor(client.config.color.error)
+            .setDescription(`Użytkownik ma taką samą lub wyższą role`)
+            .setFooter({text: `Wywołane przez ${interaction.user.tag} (${interaction.user.id})`, iconURL: interaction.user.avatarURL({dynamic :true})})
+
+            return interaction.reply({
+                embeds: [errEmbed]
+            })
+        }
+
+            let time = ms(timeMs)
+
+            if(!time){
+
+            let errEmbed = new Discord.MessageEmbed()
+            .setTitle(`Napotkano problem!`)
+            .setColor(client.config.color.error)
+            .setDescription(`Podałeś niepoprawny format czasu!`)
+            .setFooter({text: `Wywołane przez ${interaction.user.tag} (${interaction.user.id})`, iconURL: interaction.user.avatarURL({dynamic :true})})
+
+            return interaction.reply({
+                embeds: [errEmbed]
+            })
+
+            }
+
+        let embedToUser = new Discord.MessageEmbed()
+        .setTitle(`Zostałeś wysłany na przerwę!`)
+        .setColor(client.config.color.primary)
+        .addFields(
+            {
+                name: `Serwer`,
+                value: `${interaction.guild.name} (\`${interaction.guild.id}\`)`
+            },
+            {
+                name: `Administrator`,
+                value: `${interaction.user.tag} (\`${interaction.user.id}\`)`
+            },
+            {
+                name: `Czas`,
+                value: `${timeMs}`
+            },
+            {
+                name: `Powód`,
+                value: `${reason}`
+            }
+        )
+        .setThumbnail(interaction.guild.iconURL())
+        .setFooter({text: `Wywołane przez ${interaction.user.tag} (${interaction.user.id})`, iconURL: interaction.user.avatarURL({dynamic :true})})
+
+        let user = await client.users.fetch(member.id)
+
+        let casey = await client.db.get(`guilds.${interaction.guild.id}.case`)
+        let caseid = 1
+        if(!casey || casey === []){
+            caseid = 1
+        }
+
+        else {
+            casey.forEach(async (caset) => {
+                caseid++
+            })
+        }
+
+        await client.db.push(`guilds.${interaction.guild.id}.case`, {
+            adminId: interaction.user.id,
+            banned: member.id,
+            reason: reason,
+            caseId: caseid,
+            akcja: `Timeout`
+        })
+
+        let embedToServer = new Discord.MessageEmbed()
+        .setTitle(`Wysłano na przerwę!`)
+        .setColor(client.config.color.primary)
+        .addFields(
+            {
+                name: `Administrator`,
+                value: `${interaction.user.tag} (\`${interaction.user.id}\`)`
+            },
+            {
+                name: `Wysłany`,
+                value: `${user.tag} (\`${user.id}\`)`
+            },
+            {
+                name: `Czas`,
+                value: `${timeMs}`
+            },
+            {
+                name: `Powód`,
+                value: `${reason}`
+            }
+        )
+        .setThumbnail(interaction.guild.iconURL())
+        .setFooter({text: `Wywołane przez ${interaction.user.tag} (${interaction.user.id})`, iconURL: interaction.user.avatarURL({dynamic :true})})
+
+        interaction.reply({
+            embeds: [embedToServer]
+        })
+
+        let logEmbed = new Discord.MessageEmbed()
+        .setAuthor({name: `Case ${caseid} | Akcja Timeout | ${user.tag}`})
+        .setColor(client.config.color.primary)
+        .addFields(
+            {
+                name: `Administrator`,
+                value: `${interaction.user.tag} (\`${interaction.user.id}\`)`
+            },
+            {
+                name: `Użytkownik`,
+                value: `${user.tag} (\`${user.id}\`)`
+            },
+            {
+                name: `Czas`,
+                value: `${timeMs}`
+            },
+            {
+                name: `Powód`,
+                value: `${reason}`
+            },
+        )
+
+        if(modLogChannel){
+            modLogChannel.send({
+                embeds: [logEmbed]
+            })
+        }
+
+        member.timeout(time, reason)
+
+        try {
+            user.send({
+                embeds: [embedToUser]
+            })
+        }
+
+        catch (err) {
+            let warnEmbed = new Discord.MessageEmbed()
+            .setTitle(`Napotkano problem!`)
+            .setColor(client.config.color.warn)
+            .setDescription(`Powiadomienie nie zostało wysłane do użytkownika (Możesz zignorować)`)
+
+            interaction.channel.send({
+                embeds: [warnEmbed]
+            })
+        }
+    }
+}
