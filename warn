@@ -1,124 +1,169 @@
 const Discord = require('discord.js')
+const QuickDB = require('quick.db')
+client.db = new QuickDB({filePath: "./Data/database.sqlite"});
 module.exports = {
-    name: "warns",
-    description: "Sprawdź listę warnów",
+    name: "warn",
+    description: "Ostrzega użytkownika",
     cooldowns: 7000,
     type: "CHAT_INPUT",
-    perms: ["ADMINISTRATOR"],
+    perms: ["MANAGE_MESSAGES"],
     options: [
         {
-            name: `lista`,
-            description: `Sprawdź warnów`,
-            type: `SUB_COMMAND`,
-            options: [
-                {
-                    name: `użytkownik`,
-                    description: `Użytkownik którego warny chcesz zobaczyć`,
-                    type: `USER`,
-                    required: false
-                }
-            ]
+            name: `użytkownik`,
+            description: `Użytkownik którego chcesz ostrzec`,
+            type: `USER`,
+            required: true
         },
         {
-            name: `usuń`,
-            description: `Usuń danego warn'a`,
-            type: `SUB_COMMAND`,
-            options: [
-                {
-                    name: `id`,
-                    description: `Id warn'a`,
-                    type: `NUMBER`,
-                    required: true
-                }
-            ]
+            name: `powód`,
+            description: `Powód ostrzerzenia użytkownika`,
+            type: `STRING`
         }
     ],
     run: async (client, interaction, args) => {
-        let sbc = interaction.options.getSubcommand()
-
-        if(sbc === `lista`){
-            let casey = await client.db.get(`guilds.${interaction.guild.id}.warn`)
-            if(!casey || casey === []){
-                return interaction.reply(`Nie znaleziono żadnego warn'a!`)
-            }
-
-            let member = interaction.options.getMember(`użytkownik`)
-            if(member){
-                let embed = new Discord.MessageEmbed()
-                .setTitle(`Wszystkie warn'y ${member.displayName}`)
-                .setColor(client.config.color.primary)
-                .setFooter({text: `Wywołane przez ${interaction.user.tag} (${interaction.user.id})`, iconURL: interaction.user.avatarURL({dynamic :true})})
-
-                casey.forEach((caset) => {
-                    if(caset.banned === member.id){
-                        embed.addField(`Case #${caset.caseId}`, `**Administrator:** <@${caset.adminId}> (${caset.adminId})\n**Użytkownik:** <@${caset.banned}> (${caset.banned})\n**Akcja:** ${caset.akcja}\n**Powód:** \`${caset.reason}\``)
-                    }
-                })
-
-                return interaction.reply({
-                    embeds: [embed]
-                })
-            }
-            let embed = new Discord.MessageEmbed()
-            .setTitle(`Wszystkie serwerowe warn'y`)
-            .setColor(client.config.color.primary)
-            .setFooter({text: `Wywołane przez ${interaction.user.tag} (${interaction.user.id})`, iconURL: interaction.user.avatarURL({dynamic :true})})
-            let embed2 = new Discord.MessageEmbed()
-            .setTitle(`Wszystkie serwerowe warn'y (Strona 2)`)
-            .setColor(client.config.color.primary)
-            .setFooter({text: `Wywołane przez ${interaction.user.tag} (${interaction.user.id})`, iconURL: interaction.user.avatarURL({dynamic :true})})
-
-            let liczbacase = 0
-
-            casey.forEach((caset) => {
-                if(caset.caseId > 0 || caset.caseId < 26){
-                    embed.addField(`Case #${caset.caseId}`, `**Administrator:** <@${caset.adminId}> (${caset.adminId})\n**Użytkownik:** <@${caset.banned}> (${caset.banned})\n**Akcja:** ${caset.akcja}\n**Powód:** \`${caset.reason}\``)
-                }
-                if(caset.caseId > 25 || caset.caseId < 51){
-                    embed2.addField(`Case #${caset.caseId}`, `**Administrator:** <@${caset.adminId}> (${caset.adminId})\n**Użytkownik:** <@${caset.banned}> (${caset.banned})\n**Akcja:** ${caset.akcja}\n**Powód:** \`${caset.reason}\``)
-                }
-                liczbacase++
-
-
-            })
-
-             interaction.reply({
-                embeds: [embed]
-            })
-
-            if(liczbacase > 25){
-                interaction.channel.send({
-                    embeds: [embed2]
-                })
-            }
+        let modLogChannel = await client.db.get(`guilds.${interaction.guild.id}.modlog`)
+        if(modLogChannel){
+            modLogChannel = interaction.guild.channels.cache.get(modLogChannel)
         }
 
-        if(sbc == `usuń`){
-            let id = interaction.options.getNumber(`id`)
 
-            let casey = await client.db.get(`guilds.${interaction.guild.id}.warn`)
+        let member = interaction.options.getMember(`użytkownik`)
+        let reason = interaction.options.getString(`powód`) || `Nie podano powodu`
 
-            if(!casey || casey === []){
-                return interaction.reply(`Na tym serwerze nie ma żadnych warnów!`)
-            }
+        if(!member){
+            let errEmbed = new Discord.MessageEmbed()
+            .setTitle(`Napotkano problem!`)
+            .setColor(client.config.color.error)
+            .setDescription(`Nie znaleziono użytkownika! Może nie ma go na serwerze?`)
+            .setFooter({text: `Wywołane przez ${interaction.user.tag} (${interaction.user.id})`, iconURL: interaction.user.avatarURL({dynamic :true})})
 
-            let casem
-            let liczbacase = 0
-
-            casey.forEach(caset => {
-                liczbacase++
-                if(caset.caseId === id) casem = caset
+            return interaction.reply({
+                embeds: [errEmbed]
             })
+        }
 
-            if(!casem){
-                return interaction.reply(`Nie znaleziono takiego warn'a!`)
+        if(member.roles.cache.first().position >= interaction.member.roles.cache.first().position){
+            let errEmbed = new Discord.MessageEmbed()
+            .setTitle(`Napotkano problem!`)
+            .setColor(client.config.color.error)
+            .setDescription(`Użytkownik ma taką samą lub wyższą role`)
+            .setFooter({text: `Wywołane przez ${interaction.user.tag} (${interaction.user.id})`, iconURL: interaction.user.avatarURL({dynamic :true})})
+
+            return interaction.reply({
+                embeds: [errEmbed]
+            })
+        }
+
+        let embedToUser = new Discord.MessageEmbed()
+        .setTitle(`Zostałeś zwarnowany!`)
+        .setColor(client.config.color.primary)
+        .addFields(
+            {
+                name: `Serwer`,
+                value: `${interaction.guild.name} (\`${interaction.guild.id}\`)`
+            },
+            {
+                name: `Administrator`,
+                value: `${interaction.user.tag} (\`${interaction.user.id}\`)`
+            },
+            {
+                name: `Powód`,
+                value: `${reason}`
             }
+        )
+        .setThumbnail(interaction.guild.iconURL())
+        .setFooter({text: `Wywołane przez ${interaction.user.tag} (${interaction.user.id})`, iconURL: interaction.user.avatarURL({dynamic :true})})
 
-            casey.splice((id - liczbacase) * -1, 1)
+        let user = await client.users.fetch(member.id)
 
-            await client.db.set(`guilds.${interaction.guild.id}.warn`, casey)
+        let casey = await client.db.get(`guilds.${interaction.guild.id}.case`)
+        let caseid = 1
+        if(!casey || casey === []){
+            caseid = 1
+        }
 
-            return interaction.reply(`Usunięto warn'a \`#${casem.caseId}\``)
+        else {
+            casey.forEach(async (caset) => {
+                caseid++
+            })
+        }
+
+        await client.db.push(`guilds.${interaction.guild.id}.case`, {
+            adminId: interaction.user.id,
+            banned: member.id,
+            reason: reason,
+            caseId: caseid,
+            akcja: `Warn`
+        })
+
+    
+        let embedToServer = new Discord.MessageEmbed()
+        .setTitle(`Zwarnowano!`)
+        .setColor(client.config.color.primary)
+        .addFields(
+            {
+                name: `Administrator`,
+                value: `${interaction.user.tag} (\`${interaction.user.id}\`)`
+            },
+            {
+                name: `Zwarnowany`,
+                value: `${user.tag} (\`${user.id}\`)`
+            },
+            {
+                name: `Powód`,
+                value: `${reason}`
+            },
+            {
+                name: `Case`,
+                value: `\`${caseid}\``
+            }
+        )
+        .setThumbnail(interaction.guild.iconURL())
+        .setFooter({text: `Wywołane przez ${interaction.user.tag} (${interaction.user.id})`, iconURL: interaction.user.avatarURL({dynamic :true})})
+
+        interaction.reply({
+            embeds: [embedToServer]
+        })
+
+        let logEmbed = new Discord.MessageEmbed()
+        .setAuthor({name: `Case ${caseid} | Akcja Warn | ${user.tag}`})
+        .setColor(client.config.color.primary)
+        .addFields(
+            {
+                name: `Administrator`,
+                value: `${interaction.user.tag} (\`${interaction.user.id}\`)`
+            },
+            {
+                name: `Zwarnowany`,
+                value: `${user.tag} (\`${user.id}\`)`
+            },
+            {
+                name: `Powód`,
+                value: `${reason}`
+            },
+        )
+
+        if(modLogChannel){
+            modLogChannel.send({
+                embeds: [logEmbed]
+            })
+        }
+
+        try {
+            user.send({
+                embeds: [embedToUser]
+            })
+        }
+
+        catch (err) {
+            let warnEmbed = new Discord.MessageEmbed()
+            .setTitle(`Napotkano problem!`)
+            .setColor(client.config.color.warn)
+            .setDescription(`Powiadomienie nie zostało wysłane do użytkownika (Możesz zignorować)`)
+
+            interaction.channel.send({
+                embeds: [warnEmbed]
+            })
         }
     }
 }
