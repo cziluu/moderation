@@ -1,0 +1,53 @@
+const { Client, CommandInteraction } = require("discord.js");
+const QuickDB = require('quick.db')
+client.db = new QuickDB({filePath: "./Data/database.sqlite"});
+module.exports = {
+    name: 'clear',
+    category: 'Moderation',
+    description: 'Clear messages on any channel',
+    userperm: ['MANAGE_MESSAGES'],
+    botperm: ['MANAGE_MESSAGES'],
+    options: [
+        {
+            name: "number",
+            description: "Enter number",
+            type: "INTEGER",
+            min_value: 1,
+            max_value: 100,
+            required: true
+        },
+        {
+            name: "channel",
+            description: "Select channel",
+            type: "CHANNEL",
+            required: false
+        }
+    ],
+        /**
+     *
+     * @param {Client} client
+     * @param {CommandInteraction} interaction
+     * @param {String[]} args
+     */
+    run: async(client, interaction, args) => {
+        const number = interaction.options.getInteger('number')
+        const ch = interaction.options.getChannel('channel') || interaction.channel;
+        const channel = interaction.guild.channels.cache.get(ch.id)
+        if(!channel) return interaction.reply({
+            content: 'Channel not found',
+            ephemeral: true
+        })
+
+        if(channel.type !== 'GUILD_TEXT') return interaction.reply({
+            content: 'You must provide a text channel!',
+            ephemeral: true
+        })
+        channel.bulkDelete(number)
+        interaction.reply({content: 'Success!', ephemeral: true})
+        channel.send({embeds: [sender.finishEmbed(interaction, `Deleted \` ${number} \` messagess!`)]}).then((message) => {
+            setTimeout(() => {
+                message.delete() 
+            }, 5000);
+        })
+    }
+}
