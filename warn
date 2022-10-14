@@ -1,0 +1,124 @@
+const Discord = require('discord.js')
+module.exports = {
+    name: "warns",
+    description: "Sprawdź listę warnów",
+    cooldowns: 7000,
+    type: "CHAT_INPUT",
+    perms: ["ADMINISTRATOR"],
+    options: [
+        {
+            name: `lista`,
+            description: `Sprawdź warnów`,
+            type: `SUB_COMMAND`,
+            options: [
+                {
+                    name: `użytkownik`,
+                    description: `Użytkownik którego warny chcesz zobaczyć`,
+                    type: `USER`,
+                    required: false
+                }
+            ]
+        },
+        {
+            name: `usuń`,
+            description: `Usuń danego warn'a`,
+            type: `SUB_COMMAND`,
+            options: [
+                {
+                    name: `id`,
+                    description: `Id warn'a`,
+                    type: `NUMBER`,
+                    required: true
+                }
+            ]
+        }
+    ],
+    run: async (client, interaction, args) => {
+        let sbc = interaction.options.getSubcommand()
+
+        if(sbc === `lista`){
+            let casey = await client.db.get(`guilds.${interaction.guild.id}.warn`)
+            if(!casey || casey === []){
+                return interaction.reply(`Nie znaleziono żadnego warn'a!`)
+            }
+
+            let member = interaction.options.getMember(`użytkownik`)
+            if(member){
+                let embed = new Discord.MessageEmbed()
+                .setTitle(`Wszystkie warn'y ${member.displayName}`)
+                .setColor(client.config.color.primary)
+                .setFooter({text: `Wywołane przez ${interaction.user.tag} (${interaction.user.id})`, iconURL: interaction.user.avatarURL({dynamic :true})})
+
+                casey.forEach((caset) => {
+                    if(caset.banned === member.id){
+                        embed.addField(`Case #${caset.caseId}`, `**Administrator:** <@${caset.adminId}> (${caset.adminId})\n**Użytkownik:** <@${caset.banned}> (${caset.banned})\n**Akcja:** ${caset.akcja}\n**Powód:** \`${caset.reason}\``)
+                    }
+                })
+
+                return interaction.reply({
+                    embeds: [embed]
+                })
+            }
+            let embed = new Discord.MessageEmbed()
+            .setTitle(`Wszystkie serwerowe warn'y`)
+            .setColor(client.config.color.primary)
+            .setFooter({text: `Wywołane przez ${interaction.user.tag} (${interaction.user.id})`, iconURL: interaction.user.avatarURL({dynamic :true})})
+            let embed2 = new Discord.MessageEmbed()
+            .setTitle(`Wszystkie serwerowe warn'y (Strona 2)`)
+            .setColor(client.config.color.primary)
+            .setFooter({text: `Wywołane przez ${interaction.user.tag} (${interaction.user.id})`, iconURL: interaction.user.avatarURL({dynamic :true})})
+
+            let liczbacase = 0
+
+            casey.forEach((caset) => {
+                if(caset.caseId > 0 || caset.caseId < 26){
+                    embed.addField(`Case #${caset.caseId}`, `**Administrator:** <@${caset.adminId}> (${caset.adminId})\n**Użytkownik:** <@${caset.banned}> (${caset.banned})\n**Akcja:** ${caset.akcja}\n**Powód:** \`${caset.reason}\``)
+                }
+                if(caset.caseId > 25 || caset.caseId < 51){
+                    embed2.addField(`Case #${caset.caseId}`, `**Administrator:** <@${caset.adminId}> (${caset.adminId})\n**Użytkownik:** <@${caset.banned}> (${caset.banned})\n**Akcja:** ${caset.akcja}\n**Powód:** \`${caset.reason}\``)
+                }
+                liczbacase++
+
+
+            })
+
+             interaction.reply({
+                embeds: [embed]
+            })
+
+            if(liczbacase > 25){
+                interaction.channel.send({
+                    embeds: [embed2]
+                })
+            }
+        }
+
+        if(sbc == `usuń`){
+            let id = interaction.options.getNumber(`id`)
+
+            let casey = await client.db.get(`guilds.${interaction.guild.id}.warn`)
+
+            if(!casey || casey === []){
+                return interaction.reply(`Na tym serwerze nie ma żadnych warnów!`)
+            }
+
+            let casem
+            let liczbacase = 0
+
+            casey.forEach(caset => {
+                liczbacase++
+                if(caset.caseId === id) casem = caset
+            })
+
+            if(!casem){
+                return interaction.reply(`Nie znaleziono takiego warn'a!`)
+            }
+
+            casey.splice((id - liczbacase) * -1, 1)
+
+            await client.db.set(`guilds.${interaction.guild.id}.warn`, casey)
+
+            return interaction.reply(`Usunięto warn'a \`#${casem.caseId}\``)
+        }
+    }
+}
